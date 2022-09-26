@@ -1,89 +1,131 @@
-const xStep = 101,
-      yStep = 83,
-      yShift = 20,
-      numCol = 5,
-      fieldWidth = numCol*xStep;
-const cellCenterY = (colNo = numCol, num = yStep, shift = yShift) => colNo*num - shift;
-const setCoordByCellNum = (cellNum = -1, cellWidth = xStep) => cellNum*cellWidth;
+const X_STEP = 101,
+    Y_STEP = 83,
+    Y_SHIFT = 20,
+    LAST_COLMN = 5,
+    LAST_ROW = 5,
+    FIELD_WIDTH = LAST_COLMN * X_STEP,
+    EPS = 0.3;
 
-// Enemies our player must avoid
-const Enemy = function(xCoord = setCoordByCellNum(), yCoord = cellCenterY(1), minSpeed = 100, maxSpeed = 700) {
-    this.sprite = 'images/enemy-bug.png';
+const setYCoordByRowNum = (rowNo = LAST_ROW, num = Y_STEP, shift = Y_SHIFT) =>
+    rowNo * num - shift;
+const setXCoordByColNum = (colNo = -1, cellWidth = X_STEP) => colNo * cellWidth;
+const getRandInclusive = (min, max) => {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1) + min);
+};
+function showWinAlert() {
+    const winAlert = document.querySelector(".win-alert");
+    winAlert.classList.add("active");
+    winAlert.addEventListener("click", (e) =>
+        e.currentTarget.classList.remove("active")
+    );
+}
+
+const Character = function (xCoord, yCoord, spritePath) {
     this.x = xCoord;
     this.y = yCoord;
+    this.sprite = spritePath;
+};
+
+const Enemy = function (
+    xCoord,
+    yCoord,
+    spritePath,
+    player,
+    minSpeed = 150,
+    maxSpeed = 700
+) {
+    Character.call(this, xCoord, yCoord, spritePath);
+    this.player = player;
     this.minSpeed = minSpeed;
     this.maxSpeed = maxSpeed;
-    this.speed = Math.floor(Math.random() * (maxSpeed - minSpeed) + minSpeed);
+    this.speed = getRandInclusive(minSpeed, maxSpeed);
 };
-Enemy.prototype.update = function(dt) {
+Enemy.prototype = Object.create(Character.prototype);
+Enemy.prototype.update = function (dt) {
     this.collidedWith(player);
-    if(this.x < fieldWidth){
-        this.x += this.speed*dt;
+    if (this.x < FIELD_WIDTH) {
+        this.x += this.speed * dt;
     } else this.restart();
 };
-Enemy.prototype.restart = function() {
-    this.speed = Math.floor(Math.random() * (this.maxSpeed - this.minSpeed) + this.minSpeed);
-    this.x = setCoordByCellNum();
+Enemy.prototype.restart = function () {
+    this.speed = getRandInclusive(this.minSpeed, this.maxSpeed);
+    this.x = setXCoordByColNum();
 };
-Enemy.prototype.collidedWith = function(player){
-    if (this.x > (player.x - xStep/3) &&
-        this.x < (player.x + xStep/3) &&
-        this.y === player.y) {
+Enemy.prototype.collidedWith = function () {
+    if (
+        this.x > this.player.x - X_STEP * EPS &&
+        this.x < this.player.x + X_STEP * EPS &&
+        this.y === this.player.y
+    ) {
         player.restart();
     }
 };
-Enemy.prototype.render = function() {
+Enemy.prototype.render = function () {
     ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
 };
 
-// Player class
-const Player = function() {
-    this.sprite = 'images/char-cat-girl.png';
-    this.x = setCoordByCellNum(Math.floor(numCol/2));
-    this.y = cellCenterY();
+const Player = function (xCoord, yCoord, spritePath) {
+    Character.call(this, xCoord, yCoord, spritePath);
 };
-Player.prototype.update = function() {
-    if (this.y < yShift) this.restart();
+Player.prototype = Object.create(Character.prototype);
+Player.prototype.update = function () {
+    if (this.y < Y_SHIFT) {
+        showWinAlert();
+        this.restart();
+    }
 };
-Player.prototype.restart = function (){
-    this.x = setCoordByCellNum(Math.floor(numCol/2));
-    this.y = cellCenterY();
+Player.prototype.restart = function () {
+    this.x = setXCoordByColNum(Math.floor(LAST_COLMN / 2));
+    this.y = setYCoordByRowNum();
+};
+Player.prototype.render = function () {
+    ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
+};
+Player.prototype.handleInput = function (direction) {
+    this.x =
+        direction === "left" && this.x > 0 ? this.x - X_STEP
+            : direction === "right" && this.x < FIELD_WIDTH - X_STEP
+                ? this.x + X_STEP
+                : this.x;
+    this.y =
+        direction === "up" && this.y > Y_SHIFT ? this.y - Y_STEP
+            : direction === "down" && this.y < setYCoordByRowNum()
+                ? this.y + Y_STEP
+                : this.y;
+};
+
+const PLAYER_INFO = {
+    xInit: setXCoordByColNum(Math.floor(LAST_COLMN / 2)),
+    yInit: setYCoordByRowNum(),
+    sprite: "images/char-cat-girl.png",
+};
+const player = new Player(...Object.values(PLAYER_INFO));
+
+const ROWS_WITH_ENEM = 3,
+    MIN_ROW_ENEM = 1,
+    MAX_ROW_ENEM = 2;
+const allEnemies = [];
+for (let i = 1; i <= ROWS_WITH_ENEM; i++) {
+    for (let j = 0; j < getRandInclusive(MIN_ROW_ENEM, MAX_ROW_ENEM); j++) {
+        allEnemies.push(
+            new Enemy(
+                setXCoordByColNum(),
+                setYCoordByRowNum(i),
+                "images/enemy-bug.png",
+                player
+            )
+        );
+    }
 }
-Player.prototype.render = function() {
-    ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
-};
-Player.prototype.handleInput = function(direction) {
-        switch (direction) {
-            case 'left':
-                if (this.x>0 ) this.x -= xStep;
-                break;
-            case 'up':
-                if (this.y>yShift) this.y -= yStep;
-                break;
-            case 'right':
-                if (this.x < fieldWidth - xStep) this.x += xStep;
-                break;
-            case 'down':
-                if (this.y < cellCenterY()) this.y += yStep;
-                break;
-            default:
-                this.x += 0;
-                this.y += 0;
-        }
-};
 
-const allEnemies = [new Enemy(setCoordByCellNum(), cellCenterY(1)),
-                    new Enemy(setCoordByCellNum(), cellCenterY(2)),
-                    new Enemy(setCoordByCellNum(), cellCenterY(3))
-                    ];
-const player = new Player();
-
-document.addEventListener('keyup', function(e) {
+document.addEventListener("keyup", function (e) {
     const allowedKeys = {
-        37: 'left',
-        38: 'up',
-        39: 'right',
-        40: 'down'
+        37: "left",
+        38: "up",
+        39: "right",
+        40: "down",
     };
     player.handleInput(allowedKeys[e.keyCode]);
 });
